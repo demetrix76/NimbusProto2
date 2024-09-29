@@ -7,10 +7,16 @@ using System.Web;
 
 namespace NimbusProto2
 { 
+    internal class MIME
+    {
+        public const string JSON = "application/json";
+    }
+
     internal class NimbusApp : IDisposable
     {
         private Properties.Settings _settings;
         private HttpClient _httpClient = new HttpClient();
+
 
         public NimbusApp(Properties.Settings settings)
         {
@@ -27,9 +33,11 @@ namespace NimbusProto2
 
         public async Task<UserInfo> GetUserInfo()
         {
-            var infoRequest = new HttpRequestMessage(HttpMethod.Get, "https://login.yandex.ru/info?format=json");
-            infoRequest.Headers.Add("Accept", "application/json");
-            infoRequest.Headers.Add("Authorization", $"OAuth {_settings.AccessToken}");
+            var infoRequest = new RequestBuilder(HttpMethod.Get, "https://login.yandex.ru/info")
+                .WithQuery(("format", "json"))
+                .WithAccept(MIME.JSON)
+                .WithAuthorization(_settings.AccessToken)
+                .Build();
 
             var infoResponse = await _httpClient.SendAsync(infoRequest);
             infoResponse.EnsureSuccessStatusCode();
@@ -57,26 +65,21 @@ namespace NimbusProto2
 
         public async Task LogIn(CancellationToken cancellationToken)
         {
-            var readTask = ReadResponseFromPipe(cancellationToken);
+            var readTask = Utils.PipeGetSingleMessage("NimbusKeeperApp", cancellationToken);//  ReadResponseFromPipe(cancellationToken);
 
             // open yandex auth page
-            var content = new FormUrlEncodedContent(new Dictionary<string, string>
-                {
-                    { "response_type", "code"},
-                    { "client_id", _settings.ClientID },
-                    { "device_id", _settings.DeviceId },
-                    { "device_name", _settings.DeviceName },
-                    { "redirect_uri", _settings.ConfirmationURI },
-                    {"force_confirm", "yes" }
-                }
-            );
 
-            UriBuilder uriBuilder = new UriBuilder("https://oauth.yandex.ru/authorize")
-            {
-                Query = content.ReadAsStringAsync().Result
-            };
-            
-           Process.Start(new ProcessStartInfo(uriBuilder.Uri.ToString()) { UseShellExecute = true });
+            var browserRequest = new RequestBuilder(HttpMethod.Get, "https://oauth.yandex.ru/authorize")
+                .WithQuery(
+                    ("response_type", "code"),
+                    ("client_id", _settings.ClientID),
+                    ("device_id", _settings.DeviceId),
+                    ("device_name", _settings.DeviceName),
+                    ("redirect_uri", _settings.ConfirmationURI),
+                    ("force_confirm", "yes")
+                ).Build();
+
+            Utils.OpenInBrowser(browserRequest.RequestUri);
 
             // wait for confirmation code
             var redirectedURL = await readTask;
@@ -88,21 +91,20 @@ namespace NimbusProto2
             if (confirmationCode == null)
                 throw new Exception("Server did not respond with a confirmation code");
 
-            var authRequest = new HttpRequestMessage(HttpMethod.Post, "https://oauth.yandex.ru/token");
-            authRequest.Headers.Add("Accept", "application/json");
-            authRequest.Content = new FormUrlEncodedContent(new Dictionary<string, string> {
-                {"grant_type", "authorization_code" },
-                {"code", confirmationCode },
-                {"client_id", _settings.ClientID },
-                {"client_secret", _settings.ClientSecret },
-                {"device_id", _settings.DeviceId },
-                {"device_name", _settings.DeviceName },
-            });
+            var authRequest = new RequestBuilder(HttpMethod.Post, "https://oauth.yandex.ru/token")
+                   .WithHeaders(("Accept", "application/json"))
+                   .WithFormContent(
+                        ( "grant_type", "authorization_code" ),
+                        ( "code", confirmationCode ),
+                        ( "client_id", _settings.ClientID ),
+                        ( "client_secret", _settings.ClientSecret ),
+                        ( "device_id", _settings.DeviceId ),
+                        ( "device_name", _settings.DeviceName )
+                    ).Build();
 
             var authResponse = await _httpClient.SendAsync(authRequest);
 
             var status = authResponse.StatusCode;
-
 
             var responseText = await authResponse.Content.ReadAsStringAsync();
             Console.WriteLine($"Auth response: ${responseText}");
@@ -114,6 +116,7 @@ namespace NimbusProto2
             _settings.AccessToken = accessToken;
             Console.WriteLine($"Access token: {accessToken}");
         }
+
 
         private async Task<string> ReadResponseFromPipe(CancellationToken cancellationToken)
         {

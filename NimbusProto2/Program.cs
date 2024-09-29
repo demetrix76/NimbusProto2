@@ -38,13 +38,7 @@ namespace NimbusProto2
         {
             try
             {
-                using var clientStream = new NamedPipeClientStream(".", "NimbusKeeperApp", PipeDirection.Out);
-                clientStream.Connect(5000);
-                if (clientStream.IsConnected)
-                {
-                    var bytes = Encoding.UTF8.GetBytes(arg);
-                    clientStream.Write(bytes, 0, bytes.Length);
-                }
+                Utils.PipePostSingleMessage("NimbusKeeperApp", arg);
             }
             catch (Exception)
             {
