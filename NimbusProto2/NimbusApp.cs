@@ -45,8 +45,8 @@ namespace NimbusProto2
             var infoText = await infoResponse.Content.ReadAsStringAsync();
             Console.WriteLine(infoText);
 
-            var userLogin = getPropertyFromResponse("login", infoText) ?? "unknown";
-            var avatarId = getPropertyFromResponse("default_avatar_id", infoText);
+            var userLogin = Utils.GetPropertyFromResponse("login", infoText) ?? "unknown";
+            var avatarId = Utils.GetPropertyFromResponse("default_avatar_id", infoText);
 
             System.Drawing.Image? avatar = null;
 
@@ -111,52 +111,9 @@ namespace NimbusProto2
 
             authResponse.EnsureSuccessStatusCode();
 
-            var accessToken = getAccessTokenFromResponse(responseText);
+            var accessToken = Utils.GetPropertyFromResponse("access_token", responseText);
                         
             _settings.AccessToken = accessToken;
-            Console.WriteLine($"Access token: {accessToken}");
-        }
-
-
-        private async Task<string> ReadResponseFromPipe(CancellationToken cancellationToken)
-        {
-            using var pipeServerStream = new NamedPipeServerStream("NimbusKeeperApp", PipeDirection.In, 1, PipeTransmissionMode.Message);
-            
-            await pipeServerStream.WaitForConnectionAsync(cancellationToken);
-
-            byte[] buffer = new byte[4096];
-
-            var bytesRead = await pipeServerStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
-
-            var result = Encoding.UTF8.GetString(buffer, 0, buffer.Length);
-
-            return result;
-        }
-
-        private static string? getAccessTokenFromResponse(string response)
-        {
-            try
-            {
-                var document = JsonDocument.Parse(response);
-                return document.RootElement.GetProperty("access_token").GetString();
-            }
-            catch(Exception)
-            {
-                return null;
-            }
-        }
-
-        private static string? getPropertyFromResponse(string propertyName, string response)
-        {
-            try
-            {
-                var document = JsonDocument.Parse(response);
-                return document.RootElement.GetProperty(propertyName).GetString();
-            }
-            catch (Exception)
-            {
-                return null;
-            }
         }
     }
 }

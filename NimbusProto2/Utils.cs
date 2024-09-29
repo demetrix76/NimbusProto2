@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using System.IO.Pipes;
 using System.Text;
+using System.Text.Json;
 
 namespace NimbusProto2
 {
@@ -33,6 +34,21 @@ namespace NimbusProto2
             if(pipeClientStream.IsConnected)
             {
                 pipeClientStream.Write(Encoding.UTF8.GetBytes(message));
+            }
+        }
+
+        // gets a single property from a JSON response;
+        // don't use repeated calls to this function to get multiple properties, for efficiency reasons
+        public static string? GetPropertyFromResponse(string propertyName, string response)
+        {
+            try
+            {
+                var document = JsonDocument.Parse(response);
+                return document.RootElement.GetProperty(propertyName).GetString();
+            }
+            catch (Exception)
+            {
+                return null;
             }
         }
 
