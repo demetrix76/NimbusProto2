@@ -94,6 +94,7 @@
             Controls.Add(label1);
             FormBorderStyle = FormBorderStyle.FixedToolWindow;
             Name = "LoggingIn";
+            ShowInTaskbar = false;
             StartPosition = FormStartPosition.CenterParent;
             Text = "Вход в аккаунт";
             Load += LoggingIn_Load;
