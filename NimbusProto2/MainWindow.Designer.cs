@@ -32,18 +32,25 @@
             lblLogin = new Label();
             picAvatar = new PictureBox();
             btnLogInOut = new Button();
+            statusStrip1 = new StatusStrip();
+            split1 = new SplitContainer();
+            lvDirView = new ListView();
+            panel2 = new Panel();
             panel1 = new Panel();
             panel1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)picAvatar).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)split1).BeginInit();
+            split1.Panel1.SuspendLayout();
+            split1.SuspendLayout();
             SuspendLayout();
             // 
             // panel1
             // 
-            panel1.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             panel1.BackColor = Color.LightSteelBlue;
             panel1.Controls.Add(lblLogin);
             panel1.Controls.Add(picAvatar);
             panel1.Controls.Add(btnLogInOut);
+            panel1.Dock = DockStyle.Top;
             panel1.Location = new Point(0, 0);
             panel1.Margin = new Padding(0);
             panel1.Name = "panel1";
@@ -82,18 +89,76 @@
             btnLogInOut.UseVisualStyleBackColor = true;
             btnLogInOut.Click += btnLogInOut_Click;
             // 
+            // statusStrip1
+            // 
+            statusStrip1.ImageScalingSize = new Size(20, 20);
+            statusStrip1.Location = new Point(0, 699);
+            statusStrip1.Name = "statusStrip1";
+            statusStrip1.RenderMode = ToolStripRenderMode.Professional;
+            statusStrip1.Size = new Size(1006, 22);
+            statusStrip1.TabIndex = 1;
+            statusStrip1.Text = "statusStrip1";
+            // 
+            // split1
+            // 
+            split1.Dock = DockStyle.Fill;
+            split1.Location = new Point(0, 64);
+            split1.Margin = new Padding(0);
+            split1.Name = "split1";
+            // 
+            // split1.Panel1
+            // 
+            split1.Panel1.Controls.Add(lvDirView);
+            split1.Panel1.Controls.Add(panel2);
+            // 
+            // split1.Panel2
+            // 
+            split1.Panel2.BackColor = Color.IndianRed;
+            split1.Size = new Size(1006, 635);
+            split1.SplitterDistance = 688;
+            split1.TabIndex = 2;
+            split1.TabStop = false;
+            // 
+            // lvDirView
+            // 
+            lvDirView.BorderStyle = BorderStyle.None;
+            lvDirView.Dock = DockStyle.Fill;
+            lvDirView.FullRowSelect = true;
+            lvDirView.Location = new Point(0, 37);
+            lvDirView.Name = "lvDirView";
+            lvDirView.Size = new Size(688, 598);
+            lvDirView.TabIndex = 1;
+            lvDirView.UseCompatibleStateImageBehavior = false;
+            lvDirView.ItemActivate += lvDirView_ItemActivate;
+            lvDirView.KeyDown += lvDirView_KeyDown;
+            // 
+            // panel2
+            // 
+            panel2.BackColor = Color.HotPink;
+            panel2.Dock = DockStyle.Top;
+            panel2.Location = new Point(0, 0);
+            panel2.Name = "panel2";
+            panel2.Size = new Size(688, 37);
+            panel2.TabIndex = 0;
+            // 
             // MainWindow
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1006, 721);
+            Controls.Add(split1);
+            Controls.Add(statusStrip1);
             Controls.Add(panel1);
             Name = "MainWindow";
             Text = "NimbusKeeper";
             Load += MainWindow_Load;
             panel1.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)picAvatar).EndInit();
+            split1.Panel1.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)split1).EndInit();
+            split1.ResumeLayout(false);
             ResumeLayout(false);
+            PerformLayout();
         }
 
         #endregion
@@ -101,5 +166,9 @@
         private PictureBox picAvatar;
         private Button btnLogInOut;
         private Label lblLogin;
+        private StatusStrip statusStrip1;
+        private SplitContainer split1;
+        private Panel panel2;
+        private ListView lvDirView;
     }
 }

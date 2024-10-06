@@ -1,26 +1,29 @@
-﻿using System.Diagnostics;
-using System.IO.Pipes;
-using System.Text;
+﻿using System.Web;
+using System.Net;
 using System.Text.Json;
-using System.Text.Json.Nodes;
-using System.Web;
 
 namespace NimbusProto2
-{ 
-    internal class MIME
+{
+    internal enum RequestStatus
     {
-        public const string JSON = "application/json";
+        OK,
+        AuthorizationError,
+        ConnectionError,
+        InternalError
     }
+
 
     internal class NimbusApp : IDisposable
     {
         private Properties.Settings _settings;
         private HttpClient _httpClient = new HttpClient();
-
+        private FSDirectory _rootDir = new("Root", null);
+        private FSDirectory _currentDir;
 
         public NimbusApp(Properties.Settings settings)
         {
             _settings = settings;
+            _currentDir = _rootDir;
         }
         public void Dispose() {}
 
@@ -35,7 +38,7 @@ namespace NimbusProto2
         {
             var infoRequest = new RequestBuilder(HttpMethod.Get, "https://login.yandex.ru/info")
                 .WithQuery(("format", "json"))
-                .WithAccept(MIME.JSON)
+                .WithAccept(Constants.MIME.JSON)
                 .WithAuthorization(_settings.AccessToken)
                 .Build();
 
@@ -115,6 +118,55 @@ namespace NimbusProto2
                         
             _settings.AccessToken = accessToken;
         }
+
+        public FSDirectory RootDir { get => _rootDir; } 
+
+        public FSDirectory CurrentDir { get => _currentDir; set => _currentDir = value; }
+
+        public async Task<(RequestStatus, string?)> RefreshCurrentDir(CancellationToken cancellationToken)
+        {
+            const string fieldsOfInterest = "_embedded.items.resource_id,_embedded.items.path,_embedded.items.name,_embedded.items.size,_embedded.items.type,_embedded.items.created,_embedded.items.modified," +
+                "_embedded.items.mime_type,_embedded.items.preview,_embedded.items.public_url,_embedded.items.public_key";
+
+            var dirToUpdate = _currentDir;
+
+            try
+            {
+                var request = new RequestBuilder(HttpMethod.Get, Constants.DiskAPIUrl + "resources")
+                    .WithAccept(Constants.MIME.JSON)
+                    .WithAuthorization(_settings.AccessToken)
+                    .WithQuery(
+                        ("path", CurrentDir.FullPath),
+                        ("preview_size", "S"),
+                        ("fields", fieldsOfInterest)
+                    ).Build();
+
+                var response = await _httpClient.SendAsync(request, cancellationToken);
+
+                if (response.StatusCode == HttpStatusCode.Forbidden || response.StatusCode == HttpStatusCode.Unauthorized)
+                    return (RequestStatus.AuthorizationError, null);
+
+                var text = await response.Content.ReadAsStringAsync();
+
+                var update = JsonSerializer.Deserialize<YADISK.ResourcesRoot>(text);
+
+                if (update == null)
+                    return (RequestStatus.InternalError, "Empty or unreadable response from the server");
+
+                dirToUpdate.UpdateChildren(update._embedded);
+
+                return (RequestStatus.OK, "");
+            }
+            catch(HttpRequestException e)
+            {
+                return (RequestStatus.ConnectionError, e.Message);
+            }
+            catch (Exception e)
+            {
+                return (RequestStatus.InternalError, e.Message);
+            }
+        }
+        
     }
 }
 
