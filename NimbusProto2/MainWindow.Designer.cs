@@ -35,7 +35,7 @@
             statusStrip1 = new StatusStrip();
             split1 = new SplitContainer();
             lvDirView = new ListView();
-            panel2 = new Panel();
+            pnlPath = new FlowLayoutPanel();
             panel1 = new Panel();
             panel1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)picAvatar).BeginInit();
@@ -109,11 +109,11 @@
             // split1.Panel1
             // 
             split1.Panel1.Controls.Add(lvDirView);
-            split1.Panel1.Controls.Add(panel2);
+            split1.Panel1.Controls.Add(pnlPath);
             // 
             // split1.Panel2
             // 
-            split1.Panel2.BackColor = Color.IndianRed;
+            split1.Panel2.BackColor = SystemColors.Control;
             split1.Size = new Size(1006, 635);
             split1.SplitterDistance = 688;
             split1.TabIndex = 2;
@@ -132,14 +132,15 @@
             lvDirView.ItemActivate += lvDirView_ItemActivate;
             lvDirView.KeyDown += lvDirView_KeyDown;
             // 
-            // panel2
+            // pnlPath
             // 
-            panel2.BackColor = Color.HotPink;
-            panel2.Dock = DockStyle.Top;
-            panel2.Location = new Point(0, 0);
-            panel2.Name = "panel2";
-            panel2.Size = new Size(688, 37);
-            panel2.TabIndex = 0;
+            pnlPath.BackColor = Color.LightBlue;
+            pnlPath.Dock = DockStyle.Top;
+            pnlPath.Location = new Point(0, 0);
+            pnlPath.Name = "pnlPath";
+            pnlPath.Size = new Size(688, 37);
+            pnlPath.TabIndex = 0;
+            pnlPath.WrapContents = false;
             // 
             // MainWindow
             // 
@@ -168,7 +169,7 @@
         private Label lblLogin;
         private StatusStrip statusStrip1;
         private SplitContainer split1;
-        private Panel panel2;
+        private FlowLayoutPanel pnlPath;
         private ListView lvDirView;
     }
 }

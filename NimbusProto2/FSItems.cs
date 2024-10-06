@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel;
+using System.Linq;
 using System.Runtime.CompilerServices;
 
 namespace NimbusProto2
@@ -21,7 +22,7 @@ namespace NimbusProto2
 
         public abstract string ImageKey { get; }
 
-        public string FullPath { get { return System.IO.Path.Join(Parent?.Name ?? "/", Name); } }
+        public string FullPath { get { return Utils.URIPathCombine(Parent?.FullPath ?? "/", Name); } }
 
         public virtual void UpdateWith(YADISK.ResourcesItem resource)
         {
@@ -78,7 +79,7 @@ namespace NimbusProto2
     public class FSDirectory(string id, FSDirectory? parent) : FSItem(id, parent)
     {
         public override string DisplayType => "Папка с файлами";
-        public BindingList<FSItem> Children { get; } = [];
+        public BetterBindingList<FSItem> Children { get; } = [];
 
         public override string ImageKey => Constants.StockImageKeys.Folder;
 
@@ -117,7 +118,13 @@ namespace NimbusProto2
             }
         }
 
-
+        public IEnumerable<FSDirectory> DirectoryChain
+        {
+            get
+            {
+                return (Parent?.DirectoryChain ?? []).Append(this);
+            }
+        }
     }
 
 

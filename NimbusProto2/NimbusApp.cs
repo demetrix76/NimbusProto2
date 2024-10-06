@@ -129,6 +129,7 @@ namespace NimbusProto2
                 "_embedded.items.mime_type,_embedded.items.preview,_embedded.items.public_url,_embedded.items.public_key";
 
             var dirToUpdate = _currentDir;
+            Console.WriteLine($"Scanning {dirToUpdate.FullPath}");
 
             try
             {

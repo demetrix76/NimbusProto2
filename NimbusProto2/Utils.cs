@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System.ComponentModel;
+using System.Diagnostics;
 using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
@@ -52,6 +53,27 @@ namespace NimbusProto2
             }
         }
 
-
+        public static string URIPathCombine(string path1, string path2)
+        {
+            return path1.TrimEnd('/') + "/" + path2.TrimStart('/');
+        }
     }
+
+    // The original BindingList<T> has a fatal flaw:
+    // it's ItemDeleted notification is sent after the item has been deleted,
+    // so there's little we can do on the UI side unless we keep track of item indices which isn't nice;
+    // hence the BetterBindingList<T> class with an extra notification that occurs right before deleting the item.
+    public class BetterBindingList<T> : BindingList<T>
+    {
+        public BetterBindingList() { }
+        public BetterBindingList(IList<T> list) : base(list) { }
+
+        protected override void RemoveItem(int index)
+        {
+            FireBeforeRemove?.Invoke(this, new ListChangedEventArgs(ListChangedType.ItemDeleted, index, index));
+            base.RemoveItem(index);
+        }
+
+        public event EventHandler<ListChangedEventArgs>? FireBeforeRemove;
+    };
 }

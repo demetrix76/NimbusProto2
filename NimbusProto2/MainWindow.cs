@@ -10,7 +10,7 @@ namespace NimbusProto2
     }
     public partial class MainWindow : Form
     {
-        private NimbusApp _app;
+        private readonly NimbusApp _app;
         private UIState _state = UIState.Offline;
 
         private CancellationTokenSource _cancellationTokenSourceUpdate = new();
@@ -81,7 +81,7 @@ namespace NimbusProto2
                         State = UIState.LoggedIn;
                         picAvatar.Image = userInfo.Avatar;
                         lblLogin.Text = userInfo.Login;
-                        DirBeginUpdate();
+                        DirChdir(_app.RootDir);
                     }
                     catch (Exception e)
                     {
@@ -137,7 +137,7 @@ namespace NimbusProto2
 
         #region Directory List operations
 
-        private BindingList<FSItem>? _dirCurrentSource;
+        private BetterBindingList<FSItem>? _dirCurrentSource;
         private void DirInit()
         {
             lvDirView.Columns.AddRange([
@@ -164,7 +164,7 @@ namespace NimbusProto2
         }
         private void DirContentsChanged(object? sender, ListChangedEventArgs e)
         {
-            if (sender is not BindingList<FSItem> list || sender != _dirCurrentSource)
+            if (sender is not BetterBindingList<FSItem> list || sender != _dirCurrentSource)
                 return;
 
             switch (e.ListChangedType)
@@ -172,8 +172,24 @@ namespace NimbusProto2
                 case ListChangedType.ItemAdded:
                     DirAppendItem(list[e.NewIndex]);
                     break;
+                case ListChangedType.ItemDeleted:
+                    // do nothing here as this notification arrives too late
+                    break;
                 default:
                     break;
+            }
+        }
+
+        private void DirItemWillBeDeleted(object? sender, ListChangedEventArgs e)
+        {
+            // here we only get the ItemDeleted notification,
+            // **before** the actual deletion occurs
+            if (sender is not BetterBindingList<FSItem> list || sender != _dirCurrentSource)
+                return;
+
+            if(e.ListChangedType == ListChangedType.ItemDeleted)
+            {
+                DirRemoveItem(list[e.NewIndex]);
             }
         }
 
@@ -182,7 +198,7 @@ namespace NimbusProto2
             if (null == fsItem)
                 return;
 
-            var lvItem = new ListViewItem(fsItem.Name) { Tag = fsItem, ImageKey = fsItem.ImageKey };
+            var lvItem = new ListViewItem(fsItem.Name) { Tag = fsItem, ImageKey = fsItem.ImageKey, Name = fsItem.ID };
 
             lvItem.SubItems.Add(fsItem.DisplayType);
             lvItem.SubItems.Add(fsItem.CreationTime.ToLocalTime().ToString());
@@ -190,16 +206,29 @@ namespace NimbusProto2
             lvDirView.Items.Add(lvItem);
         }
 
-        private void DirSetSource(BindingList<FSItem> list)
+        private void DirRemoveItem(FSItem? fsItem)
+        {
+            if(null == fsItem) return;
+            lvDirView.Items.RemoveByKey(fsItem.ID);
+        }
+
+        private void DirSetSource(BetterBindingList<FSItem> list)
         {
             if (null != _dirCurrentSource)
+            {
                 _dirCurrentSource.ListChanged -= DirContentsChanged;
+                _dirCurrentSource.FireBeforeRemove -= DirItemWillBeDeleted;
+            }
 
             _dirCurrentSource = list;
             _dirCurrentSource.ListChanged += DirContentsChanged;
+            _dirCurrentSource.FireBeforeRemove += DirItemWillBeDeleted;
+
             lvDirView.Items.Clear();
+            lvDirView.BeginUpdate();
             foreach (var fsItem in list)
                 DirAppendItem(fsItem);
+            lvDirView.EndUpdate();
         }
 
         private void DirBeginUpdate()
@@ -220,9 +249,14 @@ namespace NimbusProto2
         {
             if (null == target) return;
 
+            _cancellationTokenSourceUpdate.Cancel();
+            _cancellationTokenSourceUpdate = new CancellationTokenSource();
+
             DirSetSource(target.Children);
             _app.CurrentDir = target;
             DirBeginUpdate();
+            DirScheduleUpdate(_cancellationTokenSourceUpdate.Token);
+            DirUpdatePathControl();
         }
         
         private void lvDirView_KeyDown(object sender, KeyEventArgs e)
@@ -231,6 +265,48 @@ namespace NimbusProto2
             {
                 e.Handled = true;
                 DirChdir(_app.CurrentDir.Parent);
+            }
+        }
+
+        private void DirUpdatePathControl()
+        {
+            pnlPath.Controls.Clear();
+            foreach (var btn in _app.CurrentDir.DirectoryChain.Select(d =>
+            {
+                var btn = new Button()
+                {
+                    Text = String.IsNullOrEmpty(d.Name) ? "Диск" : d.Name,
+                    AutoSize = true,
+                    AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                    FlatStyle = FlatStyle.Flat,
+                    AutoEllipsis = true
+                };
+                btn.Click += (s, e) => { this.DirChdir(d); };
+                return btn;
+            }))
+            {
+                pnlPath.Controls.Add(btn);
+            }
+        }
+
+        private async void DirScheduleUpdate(CancellationToken cancellationToken)
+        {
+            /* PROBLEM: this tends to cause excessive updates in certain cases, e.g. when we chdir to the root dir
+             * multiple times within the update timespan, thus making multiple calls to DirScheduleUpdate
+             */
+            var monitoredDir = _app.CurrentDir;
+
+            while(true)
+            {
+                using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+                await timer.WaitForNextTickAsync();
+
+                if (monitoredDir == _app.CurrentDir)
+                {
+                    await _app.RefreshCurrentDir(cancellationToken);
+                }
+                else
+                    break;
             }
         }
 
