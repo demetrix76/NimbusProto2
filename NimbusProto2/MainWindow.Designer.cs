@@ -130,6 +130,7 @@
             lvDirView.TabIndex = 1;
             lvDirView.UseCompatibleStateImageBehavior = false;
             lvDirView.ItemActivate += lvDirView_ItemActivate;
+            lvDirView.ItemDrag += lvDirView_ItemDrag;
             lvDirView.KeyDown += lvDirView_KeyDown;
             // 
             // pnlPath

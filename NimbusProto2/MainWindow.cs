@@ -187,7 +187,7 @@ namespace NimbusProto2
             if (sender is not BetterBindingList<FSItem> list || sender != _dirCurrentSource)
                 return;
 
-            if(e.ListChangedType == ListChangedType.ItemDeleted)
+            if (e.ListChangedType == ListChangedType.ItemDeleted)
             {
                 DirRemoveItem(list[e.NewIndex]);
             }
@@ -208,7 +208,7 @@ namespace NimbusProto2
 
         private void DirRemoveItem(FSItem? fsItem)
         {
-            if(null == fsItem) return;
+            if (null == fsItem) return;
             lvDirView.Items.RemoveByKey(fsItem.ID);
         }
 
@@ -258,10 +258,10 @@ namespace NimbusProto2
             DirScheduleUpdate(_cancellationTokenSourceUpdate.Token);
             DirUpdatePathControl();
         }
-        
+
         private void lvDirView_KeyDown(object sender, KeyEventArgs e)
         {
-            if(e.KeyCode == Keys.Up && 0 != (e.Modifiers & Keys.Alt))
+            if (e.KeyCode == Keys.Up && 0 != (e.Modifiers & Keys.Alt))
             {
                 e.Handled = true;
                 DirChdir(_app.CurrentDir.Parent);
@@ -291,23 +291,32 @@ namespace NimbusProto2
 
         private async void DirScheduleUpdate(CancellationToken cancellationToken)
         {
-            /* PROBLEM: this tends to cause excessive updates in certain cases, e.g. when we chdir to the root dir
-             * multiple times within the update timespan, thus making multiple calls to DirScheduleUpdate
-             */
             var monitoredDir = _app.CurrentDir;
 
-            while(true)
+            try
             {
-                using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
-                await timer.WaitForNextTickAsync();
 
-                if (monitoredDir == _app.CurrentDir)
+                while (true)
                 {
-                    await _app.RefreshCurrentDir(cancellationToken);
+                    using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+                    await timer.WaitForNextTickAsync(cancellationToken);
+
+                    if (monitoredDir == _app.CurrentDir)
+                    {
+                        await _app.RefreshCurrentDir(cancellationToken);
+                    }
+                    else
+                        break;
                 }
-                else
-                    break;
             }
+            catch (Exception)
+            {
+                return;
+            }
+        }
+        private void lvDirView_ItemDrag(object sender, ItemDragEventArgs e)
+        {
+            Console.WriteLine("ItermDrag");
         }
 
 
