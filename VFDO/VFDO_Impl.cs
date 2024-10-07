@@ -1,7 +1,6 @@
 ﻿
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
-using VirtualFiles;
 
 using IDataObject = System.Runtime.InteropServices.ComTypes.IDataObject;
 using IDataObjectAsyncCapability = VirtualFiles.NativeTypes.IDataObjectAsyncCapability;

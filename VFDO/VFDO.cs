@@ -1,5 +1,4 @@
-﻿using System.Runtime.InteropServices;
-using System.Runtime.InteropServices.ComTypes;
+﻿using System.Runtime.InteropServices.ComTypes;
 
 using FileListSource = System.Func<System.Collections.Generic.IEnumerable<VirtualFiles.FileSource>>; // should be thread safe
 

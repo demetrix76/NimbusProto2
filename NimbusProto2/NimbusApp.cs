@@ -155,17 +155,6 @@ namespace NimbusProto2
          */
         public VFDO? CreateDataObjectForItems(IEnumerable<FSItem?> items, FSDirectory sourceDir, CancellationToken cancellationToken)
         {
-            // TODO delete the ShallowCopy()?
-            // take a snapshot of the selected items (make shallow copies, excluding directories' children)
-            //items.Select(item => item.GetShallowCopy()).ToArray();
-            // maybe we just need a list of full disk paths and paths relative to the source dir?
-            // or maybe it's best to reuse the FSItem code?
-
-            //foreach (var item in snapshot)
-            //    item.Walk(item => Console.WriteLine(item.PathRelativeTo(sourceDir)));
-
-            var sourceDirCopy = sourceDir;//.GetShallowCopy();
-                        
             var snapshot = items.Where(item => item != null)
                 .Select(item => item!.GetShallowCopy()).ToArray();
 
@@ -174,17 +163,19 @@ namespace NimbusProto2
 
             List<FSItem> readyList = [];
             bool failed = false;
+            
+            var accessToken = _settings.AccessToken;
 
-            Func<IEnumerable<VirtualFiles.FileSource>> fileListSource = () =>
+            IEnumerable<FileSource> fileListSource()
             {
                 // this will be called by the COM system on an arbitrary thread
                 // wait for the collectSubtree tasks to finish
 
                 FSItem[] itemsToProcess;
 
-                lock(readyList)
+                lock (readyList)
                 {
-                    while(readyList.Count == 0 && ! failed)
+                    while (readyList.Count == 0 && !failed)
                         Monitor.Wait(readyList);
 
                     if (failed)
@@ -195,35 +186,36 @@ namespace NimbusProto2
 
                 List<VirtualFiles.FileSource> result = [];
 
-                foreach(var item in itemsToProcess)
+                foreach (var item in itemsToProcess)
                 {
-                    item.Walk(sourceItem => { 
-                        if(sourceItem is FSDirectory sourceDir)
+                    item.Walk(sourceItem =>
+                    {
+                        if (sourceItem is FSDirectory dir)
                         {
-                            if(sourceDir.Children.Count == 0)
+                            if (dir.Children.Count == 0)
                             {
                                 // need to create the directory explicitly as it has no files that would trigger its implicit creation
-                                result.Add(new FileSource { 
+                                result.Add(new FileSource
+                                {
                                     IsDirectory = true,
-                                    Name = sourceDir.PathRelativeTo(sourceDirCopy),
+                                    Name = dir.PathRelativeTo((FSDirectory)sourceDir),
                                     Size = 0,
-                                    LastModified = sourceDir.LastModifiedTime,
+                                    LastModified = dir.LastModifiedTime,
                                     StreamSource = null
                                 });
                             }
                         }
-                        else if(sourceItem is FSFile sourceFile)
+                        else if (sourceItem is FSFile file)
                         {
-                            var name = sourceFile.PathRelativeTo(sourceDirCopy);
+                            var name = file.PathRelativeTo((FSDirectory)sourceDir);
 
-                            var accessToken = _settings.AccessToken;
-                            var diskPath = sourceFile.FullPath;
+                            var diskPath = file.FullPath;
 
                             result.Add(new FileSource
                             {
-                                Name = sourceFile.PathRelativeTo(sourceDirCopy),
-                                LastModified = sourceFile.LastModifiedTime,
-                                Size = sourceFile.Size,
+                                Name = file.PathRelativeTo((FSDirectory)sourceDir),
+                                LastModified = file.LastModifiedTime,
+                                Size = file.Size,
                                 StreamSource = () => CreateStreamForFile(accessToken, diskPath, CancellationToken.None)
                             });
                         }
@@ -231,9 +223,10 @@ namespace NimbusProto2
                 }
 
                 return result;
-            };
+            }
 
-            Func<Task> collectSubtrees = async () => {
+            async Task collectSubtrees()
+            {
                 // TODO provide UI feedback, let the user know we're busy with something...
                 // NOTE: this is executed on the main thread, so it's safe to inteact with the UI
                 try
@@ -246,14 +239,14 @@ namespace NimbusProto2
                         Monitor.Pulse(readyList);
                     }
                 }
-                catch(Exception)
+                catch (Exception)
                 {
-                    lock(readyList)
+                    lock (readyList)
                     {
                         failed = true;
                     }
                 }
-            };
+            }
 
             collectSubtrees().ContinueWith(t => { });
             
@@ -307,7 +300,9 @@ namespace NimbusProto2
          * HTTP stream into the IStream
          */
         // this will be called on the pool thread, so we copy all the required data
-        private static IStream? CreateStreamForFile(string accessToken, string diskPath, CancellationToken cancellationToken)
+        private static IStream? CreateStreamForFile(string accessToken,
+                                                    string diskPath,
+                                                    CancellationToken cancellationToken)
         {
             var virtualStream = new VirtualStream();
 

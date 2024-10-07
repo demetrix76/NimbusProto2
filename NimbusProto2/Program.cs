@@ -1,7 +1,3 @@
-using System.IO.Pipes;
-using System.Reflection;
-using System.Text;
-
 namespace NimbusProto2
 {
     internal static class Program
