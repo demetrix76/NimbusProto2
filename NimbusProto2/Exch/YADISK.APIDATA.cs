@@ -25,6 +25,15 @@
         public string? mime_type { get; set; }
         public long size { get; set; }
     }
+
+
+    public class DownloadResponse
+    {
+        public string? href { get; set; }
+        public string? method { get; set; }
+        public bool templated { get; set; }
+    }
+
 #pragma warning restore IDE1006 // Naming Styles
 
 }

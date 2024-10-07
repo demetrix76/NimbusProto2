@@ -4,6 +4,7 @@ using System.Text.Json;
 using VirtualFiles;
 
 using IStream = System.Runtime.InteropServices.ComTypes.IStream;
+using NimbusProto2.YADISK;
 
 namespace NimbusProto2
 {
@@ -214,13 +215,16 @@ namespace NimbusProto2
                         else if(sourceItem is FSFile sourceFile)
                         {
                             var name = sourceFile.PathRelativeTo(sourceDirCopy);
+
+                            var accessToken = _settings.AccessToken;
+                            var diskPath = sourceFile.FullPath;
+
                             result.Add(new FileSource
                             {
                                 Name = sourceFile.PathRelativeTo(sourceDirCopy),
                                 LastModified = sourceFile.LastModifiedTime,
                                 Size = sourceFile.Size,
-                                StreamSource = () => new VirtualFiles.DummyStream(sourceFile.Size)
-                                //CreateStreamForFile(sourceFile.FullPath, cancellationToken)
+                                StreamSource = () => CreateStreamForFile(accessToken, diskPath, CancellationToken.None)
                             });
                         }
                     });
@@ -298,11 +302,76 @@ namespace NimbusProto2
             return RequestStatus.OK;
         }
         
-        /* Create an IStream and immediately start supplying it with data
+        /* Create an IStream and immediately start supplying it with data;
+         * This method is synchronous, but internally it starts an asynchronous task pumping data from an 
+         * HTTP stream into the IStream
          */
-        private IStream? CreateStreamForFile(string diskPath, CancellationToken cancellationToken)
+        // this will be called on the pool thread, so we copy all the required data
+        private static IStream? CreateStreamForFile(string accessToken, string diskPath, CancellationToken cancellationToken)
         {
-            return null;
+            var virtualStream = new VirtualStream();
+
+            async Task ReadStream()
+            {
+                try
+                {
+                    using var httpClient = new HttpClient();
+
+                    var infoRequest = new RequestBuilder(HttpMethod.Get, Constants.DiskAPIUrl + "resources/download")
+                            .WithAccept(Constants.MIME.JSON)
+                            .WithAuthorization(accessToken)
+                            .WithQuery(("path", diskPath))
+                            .Build();
+
+                    var infoResponse = await httpClient.SendAsync(infoRequest, cancellationToken);
+                    infoResponse.EnsureSuccessStatusCode();
+
+                    var responseText = await infoResponse.Content.ReadAsStringAsync(cancellationToken);
+
+                    // can it ever happen that we'll have templated = true?
+                    var response = JsonSerializer.Deserialize<DownloadResponse>(responseText);
+
+                    if (response?.href == null)
+                        throw new Exception("Download error");
+
+                    var downloadRequest = new RequestBuilder(HttpMethod.Get, response.href)
+                        .WithAuthorization(accessToken)
+                        .Build();
+
+                    var downloadResponse = await httpClient.SendAsync(downloadRequest, cancellationToken);
+                    downloadResponse.EnsureSuccessStatusCode();
+
+                    var responseStream = await downloadResponse.Content.ReadAsStreamAsync(cancellationToken);
+
+                    const int blockSize = 256 * 1024;
+                    var buffer = new byte[blockSize];
+
+                    while (true)
+                    {
+                        int read = await responseStream.ReadAsync(buffer, 0, blockSize);
+                        if (read == 0) // end of data   
+                        {
+                            virtualStream.Push([]);
+                            break;
+                        }
+                        else
+                        {
+                            var block = new byte[read];
+                            Array.Copy(buffer, 0, block, 0, read);
+                            virtualStream.Push(block);
+                        }
+                    }
+
+                }
+                catch(Exception)
+                {
+                    virtualStream.SignalError();
+                }
+            }
+
+            Task.Run(ReadStream);
+
+            return virtualStream;
         }
     }
 }
