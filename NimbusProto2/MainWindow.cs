@@ -317,6 +317,24 @@ namespace NimbusProto2
         private void lvDirView_ItemDrag(object sender, ItemDragEventArgs e)
         {
             Console.WriteLine("ItermDrag");
+
+            CancellationTokenSource cancellationSource = new();
+
+            var dataObj = _app.CreateDataObjectForItems(
+                lvDirView.SelectedItems.Cast<ListViewItem>().Select(item => item.Tag as FSItem),
+                _app.CurrentDir,
+                cancellationSource.Token
+            );
+
+            if (null == dataObj)
+                return;
+
+            dataObj.IsAsynchronous = true;
+
+            var effect = VirtualFiles.DefaultDropSource.DoDragDrop(dataObj, DragDropEffects.Copy);
+
+            if(0 == effect)
+                cancellationSource.Cancel();
         }
 
 

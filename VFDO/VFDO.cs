@@ -35,6 +35,9 @@ namespace VirtualFiles
             _fileListSource = fileListSource;
             _dataDescriptors = [
                 new FileGroupDescriptor(_fileListSource),
+                // if we ever need to supply UNTRUSTEDDRAGDROP,
+                // seek for its contents there: https://learn.microsoft.com/en-us/previous-versions/windows/internet-explorer/ie-developer/platform-apis/ms537178(v=vs.85)
+                // e.g. new RawDataDescriptor(ClipboardFormatID.UNTRUSTEDDRAGDROP, new byte[]{ 0x0D, 0x18, 0, 0 }) 
             ];
             // we cannot add FILECONTENTS descriptors at this stage as _fileListSource will only be called upon actual drop,
             // so it appears we'll have to do this in GetData

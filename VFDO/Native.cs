@@ -38,6 +38,10 @@ namespace VirtualFiles
     {
         public static readonly short FILECONTENTS = (short)(DataFormats.GetFormat("FileContents").Id);
         public static readonly short FILEDESCRIPTORW = (short)(DataFormats.GetFormat("FileGroupDescriptorW").Id);
+        public static readonly short UNTRUSTEDDRAGDROP = (short)(DataFormats.GetFormat("UntrustedDragDrop").Id);
+
+        public static readonly short DISABLEDRAGTEXT = (short)(DataFormats.GetFormat("DisableDragText").Id);
+        public static readonly short DROPDESCRIPTION = (short)(DataFormats.GetFormat("DropDescription").Id);
     }
 
     namespace NativeTypes
@@ -178,12 +182,12 @@ namespace VirtualFiles
             return buffer;
         }
 
-        public static nint MarshalBytesAsHGLOBAL(byte[] bytes)
-        {
-            var ptr = Marshal.AllocHGlobal(bytes.Length);
-            Marshal.Copy(bytes, 0, ptr, bytes.Length);
-            return ptr;
-        }
+        //public static nint MarshalBytesAsHGLOBAL(byte[] bytes)
+        //{
+        //    var ptr = Marshal.AllocHGlobal(bytes.Length);
+        //    Marshal.Copy(bytes, 0, ptr, bytes.Length);
+        //    return ptr;
+        //}
 
         public static FILETIME MakeFileTime(DateTime dateTime)
         {
@@ -199,9 +203,7 @@ namespace VirtualFiles
         {
             var ptr = Marshal.AllocHGlobal(data.Length);
             if(ptr != 0)
-            {
                 Marshal.Copy(data, 0, ptr, data.Length);
-            }
             return ptr;
         }
     }

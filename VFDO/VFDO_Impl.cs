@@ -125,7 +125,7 @@ namespace VirtualFiles
 #if false
             if(formatIn.tymed == TYMED.TYMED_HGLOBAL || formatIn.tymed == TYMED.TYMED_ISTREAM)
             {
-                _dataDescriptors.Add(new RawDataDescriptor(ref formatIn, ref medium));
+                _dataDescriptors.Add(new RawDataDescriptor(formatIn, ref medium));
             }
             else
             {
@@ -137,7 +137,7 @@ namespace VirtualFiles
             }
 #endif
         }
-#endregion
+        #endregion
 
         static bool IsFileContentRequested(ref FORMATETC format)
         {

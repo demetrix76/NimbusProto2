@@ -1,6 +1,9 @@
 ﻿using System.Web;
 using System.Net;
 using System.Text.Json;
+using VirtualFiles;
+
+using IStream = System.Runtime.InteropServices.ComTypes.IStream;
 
 namespace NimbusProto2
 {
@@ -11,7 +14,6 @@ namespace NimbusProto2
         ConnectionError,
         InternalError
     }
-
 
     internal class NimbusApp : IDisposable
     {
@@ -125,38 +127,11 @@ namespace NimbusProto2
 
         public async Task<(RequestStatus, string?)> RefreshCurrentDir(CancellationToken cancellationToken)
         {
-            const string fieldsOfInterest = "_embedded.items.resource_id,_embedded.items.path,_embedded.items.name,_embedded.items.size,_embedded.items.type,_embedded.items.created,_embedded.items.modified," +
-                "_embedded.items.mime_type,_embedded.items.preview,_embedded.items.public_url,_embedded.items.public_key";
-
-            var dirToUpdate = _currentDir;
-            Console.WriteLine($"Scanning {dirToUpdate.FullPath}");
+            Console.WriteLine($"Scanning {_currentDir.FullPath}");
 
             try
             {
-                var request = new RequestBuilder(HttpMethod.Get, Constants.DiskAPIUrl + "resources")
-                    .WithAccept(Constants.MIME.JSON)
-                    .WithAuthorization(_settings.AccessToken)
-                    .WithQuery(
-                        ("path", CurrentDir.FullPath),
-                        ("preview_size", "S"),
-                        ("fields", fieldsOfInterest)
-                    ).Build();
-
-                var response = await _httpClient.SendAsync(request, cancellationToken);
-
-                if (response.StatusCode == HttpStatusCode.Forbidden || response.StatusCode == HttpStatusCode.Unauthorized)
-                    return (RequestStatus.AuthorizationError, null);
-
-                var text = await response.Content.ReadAsStringAsync();
-
-                var update = JsonSerializer.Deserialize<YADISK.ResourcesRoot>(text);
-
-                if (update == null)
-                    return (RequestStatus.InternalError, "Empty or unreadable response from the server");
-
-                dirToUpdate.UpdateChildren(update._embedded);
-
-                return (RequestStatus.OK, "");
+                return (await UpdateDirectory(CurrentDir, cancellationToken), "");
             }
             catch(HttpRequestException e)
             {
@@ -167,7 +142,168 @@ namespace NimbusProto2
                 return (RequestStatus.InternalError, e.Message);
             }
         }
+
+        /* This method is deceivingly synchronous, and it is expected to return quickly,
+         * not causing any delays to the UI; however, under the hood, it starts an
+         * asynchronous operation to collect the full subtrees of the selected items.
+         * VFDO's IDataObject methods will in fact wait for the completion of this
+         * asynchronous operation, but this wait will occur on the COM pool thread,
+         * effectively blocking the drop target application if it uses the
+         * virtual file data (d'n'd within our app should not use these).
+         * For IStreams, additional asynchronous tasks will be started.
+         */
+        public VFDO? CreateDataObjectForItems(IEnumerable<FSItem?> items, FSDirectory sourceDir, CancellationToken cancellationToken)
+        {
+            // TODO delete the ShallowCopy()?
+            // take a snapshot of the selected items (make shallow copies, excluding directories' children)
+            //items.Select(item => item.GetShallowCopy()).ToArray();
+            // maybe we just need a list of full disk paths and paths relative to the source dir?
+            // or maybe it's best to reuse the FSItem code?
+
+            //foreach (var item in snapshot)
+            //    item.Walk(item => Console.WriteLine(item.PathRelativeTo(sourceDir)));
+
+            var sourceDirCopy = sourceDir;//.GetShallowCopy();
+                        
+            var snapshot = items.Where(item => item != null)
+                .Select(item => item!.GetShallowCopy()).ToArray();
+
+            if (null == snapshot || snapshot.Length == 0)
+                return null;
+
+            List<FSItem> readyList = [];
+            bool failed = false;
+
+            Func<IEnumerable<VirtualFiles.FileSource>> fileListSource = () =>
+            {
+                // this will be called by the COM system on an arbitrary thread
+                // wait for the collectSubtree tasks to finish
+
+                FSItem[] itemsToProcess;
+
+                lock(readyList)
+                {
+                    while(readyList.Count == 0 && ! failed)
+                        Monitor.Wait(readyList);
+
+                    if (failed)
+                        return [];
+
+                    itemsToProcess = [.. readyList];
+                }
+
+                List<VirtualFiles.FileSource> result = [];
+
+                foreach(var item in itemsToProcess)
+                {
+                    item.Walk(sourceItem => { 
+                        if(sourceItem is FSDirectory sourceDir)
+                        {
+                            if(sourceDir.Children.Count == 0)
+                            {
+                                // need to create the directory explicitly as it has no files that would trigger its implicit creation
+                                result.Add(new FileSource { 
+                                    IsDirectory = true,
+                                    Name = sourceDir.PathRelativeTo(sourceDirCopy),
+                                    Size = 0,
+                                    LastModified = sourceDir.LastModifiedTime,
+                                    StreamSource = null
+                                });
+                            }
+                        }
+                        else if(sourceItem is FSFile sourceFile)
+                        {
+                            var name = sourceFile.PathRelativeTo(sourceDirCopy);
+                            result.Add(new FileSource
+                            {
+                                Name = sourceFile.PathRelativeTo(sourceDirCopy),
+                                LastModified = sourceFile.LastModifiedTime,
+                                Size = sourceFile.Size,
+                                StreamSource = () => new VirtualFiles.DummyStream(sourceFile.Size)
+                                //CreateStreamForFile(sourceFile.FullPath, cancellationToken)
+                            });
+                        }
+                    });
+                }
+
+                return result;
+            };
+
+            Func<Task> collectSubtrees = async () => {
+                // TODO provide UI feedback, let the user know we're busy with something...
+                // NOTE: this is executed on the main thread, so it's safe to inteact with the UI
+                try
+                {
+                    await PopulateSubtrees(snapshot, cancellationToken);
+
+                    lock (readyList)
+                    {
+                        readyList.AddRange(snapshot);
+                        Monitor.Pulse(readyList);
+                    }
+                }
+                catch(Exception)
+                {
+                    lock(readyList)
+                    {
+                        failed = true;
+                    }
+                }
+            };
+
+            collectSubtrees().ContinueWith(t => { });
+            
+            return new VFDO(fileListSource);
+        }
+
+        private async Task PopulateSubtrees(FSItem[] items, CancellationToken cancellationToken)
+        {
+            foreach (var item in items)
+            {
+                if (item is FSDirectory fsDir)
+                {
+                    await UpdateDirectory(fsDir, cancellationToken);
+                    await PopulateSubtrees([.. fsDir.Children], cancellationToken);
+                }
+            }
+        }
+
+        private async Task<RequestStatus> UpdateDirectory(FSDirectory directory, CancellationToken cancellationToken)
+        {
+            const string fieldsOfInterest = "_embedded.items.resource_id,_embedded.items.path,_embedded.items.name,_embedded.items.size,_embedded.items.type,_embedded.items.created,_embedded.items.modified," +
+                "_embedded.items.mime_type,_embedded.items.preview,_embedded.items.public_url,_embedded.items.public_key";
+
+            var request = new RequestBuilder(HttpMethod.Get, Constants.DiskAPIUrl + "resources")
+                    .WithAccept(Constants.MIME.JSON)
+                    .WithAuthorization(_settings.AccessToken)
+                    .WithQuery(
+                        ("path", directory.FullPath),
+                        ("preview_size", "S"),
+                        ("fields", fieldsOfInterest)
+                    ).Build();
+
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.Forbidden || response.StatusCode == HttpStatusCode.Unauthorized)
+                return RequestStatus.AuthorizationError;
+
+            response.EnsureSuccessStatusCode();
+
+            var text = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            var update = JsonSerializer.Deserialize<YADISK.ResourcesRoot>(text) ?? throw new Exception("Empty or unreadable response from the server");
+            
+            directory.UpdateChildren(update._embedded);
+
+            return RequestStatus.OK;
+        }
         
+        /* Create an IStream and immediately start supplying it with data
+         */
+        private IStream? CreateStreamForFile(string diskPath, CancellationToken cancellationToken)
+        {
+            return null;
+        }
     }
 }
 

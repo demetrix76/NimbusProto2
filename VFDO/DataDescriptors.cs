@@ -116,20 +116,26 @@ namespace VirtualFiles
     }
     internal class RawDataDescriptor : DataDescriptor
     {
-        private static FORMATETC _formatDescriptor;
+        private FORMATETC _formatDescriptor;
 
         private byte[] _data;
         public override FORMATETC FormatDescriptor => _formatDescriptor;
 
         public override (nint, int) GetData()
         {
-            var ptr = NatHelpers.MarshalBytesAsHGLOBAL(_data);
+            var ptr = NatHelpers.ToHGLOBAL(_data);
             return (ptr, NatConstants.S_OK);
         }
 
         public byte[] RawData { get => _data; set => _data = value; }
 
-        public RawDataDescriptor(ref FORMATETC formatEtc, ref STGMEDIUM medium)
+        public RawDataDescriptor(short formatId, byte[] data)
+        {
+            _data = data;
+            _formatDescriptor = new FORMATETC { cfFormat = formatId, dwAspect = DVASPECT.DVASPECT_CONTENT, lindex = -1, tymed = TYMED.TYMED_HGLOBAL};
+        }
+
+        public RawDataDescriptor(FORMATETC formatEtc, ref STGMEDIUM medium)
         {
             _formatDescriptor = formatEtc;
             if (medium.tymed == TYMED.TYMED_HGLOBAL)

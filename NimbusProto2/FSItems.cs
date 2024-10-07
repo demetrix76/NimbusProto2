@@ -21,8 +21,17 @@ namespace NimbusProto2
         public abstract string DisplayType { get; }
 
         public abstract string ImageKey { get; }
-
         public string FullPath { get { return Utils.URIPathCombine(Parent?.FullPath ?? "/", Name); } }
+
+        public string PathRelativeTo(FSDirectory originDirectory)
+        {
+            if (originDirectory == Parent || Parent is null)
+                return Name;
+            else
+                return Utils.URIPathCombine(Parent.PathRelativeTo(originDirectory), Name);
+        }
+
+        public abstract void Walk(Action<FSItem> action);
 
         public virtual void UpdateWith(YADISK.ResourcesItem resource)
         {
@@ -32,6 +41,11 @@ namespace NimbusProto2
                 CreationTime = resource.created;
             if(LastModifiedTime != resource.modified)
                 LastModifiedTime = resource.modified;
+        }
+
+        public virtual FSItem GetShallowCopy()
+        {
+            return (FSItem)MemberwiseClone();
         }
 
         public static FSItem? CreateFrom(YADISK.ResourcesItem resource, FSDirectory? parentDirectory)
@@ -60,10 +74,12 @@ namespace NimbusProto2
     {
         private string? _mimeType;
         private string? _publicURL;
+        private long _size;
         public string? MIMEType { get => _mimeType; set { _mimeType = value; EmitPropertyChanged(); EmitPropertyChanged("DisplayType"); } }
         public string? PublicURL { get => _publicURL; set { _publicURL = value; EmitPropertyChanged(); } }
-        public override string DisplayType => _mimeType ?? "";
+        public long Size { get => _size; private set { _size = value; EmitPropertyChanged(); } }
 
+        public override string DisplayType => _mimeType ?? "";
         public override string ImageKey => Constants.StockImageKeys.File;
 
         public override void UpdateWith(YADISK.ResourcesItem resource)
@@ -73,15 +89,36 @@ namespace NimbusProto2
                 MIMEType = resource.mime_type;
             if(PublicURL != resource.public_url)
                 PublicURL = resource.public_url;
+            if(Size != resource.size)
+                Size = resource.size;
+        }
+
+        public override void Walk(Action<FSItem> action)
+        {
+            action(this);
         }
     }
 
     public class FSDirectory(string id, FSDirectory? parent) : FSItem(id, parent)
     {
         public override string DisplayType => "Папка с файлами";
-        public BetterBindingList<FSItem> Children { get; } = [];
+        public BetterBindingList<FSItem> Children { get; private set; } = [];
 
         public override string ImageKey => Constants.StockImageKeys.Folder;
+
+        public override FSDirectory GetShallowCopy()
+        {
+            var copy = (FSDirectory)MemberwiseClone();
+            copy.Children = [];
+            return copy;
+        }
+
+        public override void Walk(Action<FSItem> action)
+        {
+            action(this);
+            foreach(var child in Children)
+                child.Walk(action);
+        }
 
         public void UpdateChildren(YADISK.ResourceList? resources)
         {
