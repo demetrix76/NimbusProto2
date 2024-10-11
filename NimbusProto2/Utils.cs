@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using System.Diagnostics;
 using System.IO.Pipes;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 
@@ -56,6 +57,37 @@ namespace NimbusProto2
         public static string URIPathCombine(string path1, string path2)
         {
             return path1.TrimEnd('/') + "/" + path2.TrimStart('/');
+        }
+
+        public static Bitmap DownsizedBitmap(Bitmap original, int maxDimension)
+        {
+            var scale = Math.Min(
+                (float)maxDimension / original.Size.Width,
+                (float)maxDimension / original.Size.Height);
+
+            var result = new Bitmap(maxDimension, maxDimension);
+            using var g = Graphics.FromImage(result);
+            g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
+            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.Bicubic;
+
+            var paddingX = (maxDimension - original.Size.Width * scale) / 2.0f;
+            var paddingY = (maxDimension - original.Size.Height * scale) / 2.0f;
+
+            g.DrawImage(original, new RectangleF { 
+                X = paddingX, 
+                Y = paddingY,
+                Width = maxDimension - 2.0f * paddingX,
+                Height = maxDimension - 2.0f* paddingY
+            });
+            g.Flush();
+
+            return result;
+        }
+
+        public static Bitmap BitmapFromArray(byte[] data)
+        {
+            using var stream = new MemoryStream(data);
+            return new Bitmap(stream);
         }
     }
 

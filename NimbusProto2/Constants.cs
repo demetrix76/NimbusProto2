@@ -15,5 +15,12 @@
             public const string File = "STOCK:FILE";
         }
 
+        public static class UI
+        {
+            public const int LargeIconSize = 128;
+            public const int SmallIconSize = 48;
+        }
+
+
     }
 }

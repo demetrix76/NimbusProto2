@@ -149,16 +149,17 @@ namespace NimbusProto2
 
             lvDirView.AllowColumnReorder = true;
 
+            //lvDirView.View = View.Tile;
             lvDirView.View = View.Details;
             lvDirView.GridLines = true;
 
-            lvDirView.SmallImageList = new() { ImageSize = new Size(32, 32) };
-            lvDirView.LargeImageList = new() { ImageSize = new Size(128, 128) };
+            lvDirView.SmallImageList = new() { ImageSize = new Size(Constants.UI.SmallIconSize, Constants.UI.SmallIconSize) };
+            lvDirView.LargeImageList = new() { ImageSize = new Size(Constants.UI.LargeIconSize, Constants.UI.LargeIconSize) };
 
-            lvDirView.SmallImageList.Images.Add(Constants.StockImageKeys.Folder, SystemIcons.GetStockIcon(StockIconId.Folder, 32).ToBitmap());
-            lvDirView.SmallImageList.Images.Add(Constants.StockImageKeys.File, SystemIcons.GetStockIcon(StockIconId.DocumentNoAssociation, 32).ToBitmap());
-            lvDirView.LargeImageList.Images.Add(Constants.StockImageKeys.Folder, SystemIcons.GetStockIcon(StockIconId.Folder, 256).ToBitmap());
-            lvDirView.LargeImageList.Images.Add(Constants.StockImageKeys.File, SystemIcons.GetStockIcon(StockIconId.DocumentNoAssociation, 256).ToBitmap());
+            lvDirView.SmallImageList.Images.Add(Constants.StockImageKeys.Folder, SystemIcons.GetStockIcon(StockIconId.Folder, Constants.UI.SmallIconSize).ToBitmap());
+            lvDirView.SmallImageList.Images.Add(Constants.StockImageKeys.File, SystemIcons.GetStockIcon(StockIconId.DocumentNoAssociation, Constants.UI.SmallIconSize).ToBitmap());
+            lvDirView.LargeImageList.Images.Add(Constants.StockImageKeys.Folder, SystemIcons.GetStockIcon(StockIconId.Folder, Constants.UI.LargeIconSize).ToBitmap());
+            lvDirView.LargeImageList.Images.Add(Constants.StockImageKeys.File, SystemIcons.GetStockIcon(StockIconId.DocumentNoAssociation, Constants.UI.LargeIconSize).ToBitmap());
 
             DirSetSource(_app.CurrentDir.Children);
         }
@@ -175,9 +176,47 @@ namespace NimbusProto2
                 case ListChangedType.ItemDeleted:
                     // do nothing here as this notification arrives too late
                     break;
+                case ListChangedType.ItemChanged:
+                    DirItemChanged(list[e.NewIndex], e.PropertyDescriptor?.Name);
+                    break;
                 default:
                     break;
             }
+        }
+
+        private void DirItemChanged(FSItem fsItem, string? propertyName)
+        {
+            switch (propertyName)
+            {
+                case "Preview":
+                {
+                    if (fsItem.Preview != null)
+                    {
+                        lvDirView.SmallImageList!.Images.Add(fsItem.ID, Utils.DownsizedBitmap(fsItem.Preview, Constants.UI.SmallIconSize));
+                        lvDirView.LargeImageList!.Images.Add(fsItem.ID, Utils.DownsizedBitmap(fsItem.Preview, Constants.UI.LargeIconSize));
+                        lvDirView.Items[fsItem.ID]!.ImageKey = fsItem.ID;
+                    }
+                    else
+                    {
+                        lvDirView.SmallImageList!.Images.RemoveByKey(fsItem.ID);
+                        lvDirView.LargeImageList!.Images.RemoveByKey(fsItem.ID);
+                        lvDirView.Items[fsItem.ID]!.ImageKey = fsItem.DefaultImageKey;
+                    }
+                    break;
+                }
+                case "Name":
+                    lvDirView.Items[fsItem.ID]!.Text = fsItem.Name;
+                    break;
+                case "CreationTime":
+                    lvDirView.Items[fsItem.ID]!.SubItems[2].Text = fsItem.CreationTime.ToLocalTime().ToString();
+                    break;
+                case "LastModifiedTime":
+                    lvDirView.Items[fsItem.ID]!.SubItems[3].Text = fsItem.LastModifiedTime.ToLocalTime().ToString();
+                    break;
+                default:
+                    break;
+            }
+            
         }
 
         private void DirItemWillBeDeleted(object? sender, ListChangedEventArgs e)
@@ -198,7 +237,9 @@ namespace NimbusProto2
             if (null == fsItem)
                 return;
 
-            var lvItem = new ListViewItem(fsItem.Name) { Tag = fsItem, ImageKey = fsItem.ImageKey, Name = fsItem.ID };
+            var imageKey = lvDirView.SmallImageList!.Images.ContainsKey(fsItem.ID) ? fsItem.ID : fsItem.DefaultImageKey;
+
+            var lvItem = new ListViewItem(fsItem.Name) { Tag = fsItem, ImageKey = imageKey, Name = fsItem.ID };
 
             lvItem.SubItems.Add(fsItem.DisplayType);
             lvItem.SubItems.Add(fsItem.CreationTime.ToLocalTime().ToString());
@@ -229,14 +270,28 @@ namespace NimbusProto2
             foreach (var fsItem in list)
                 DirAppendItem(fsItem);
             lvDirView.EndUpdate();
+            
+            DirCheckThumbnails();
         }
 
         private void DirBeginUpdate()
         {
             _app.RefreshCurrentDir(_cancellationTokenSourceUpdate.Token).ContinueWith(task =>
             {
+                DirCheckThumbnails();
                 // TODO respond to errors                
             }, TaskContinuationOptions.ExecuteSynchronously);
+        }
+
+        
+        private void DirCheckThumbnails()
+        {
+            foreach (var item in _app.CurrentDir.Children.Where(e => e.PreviewNeedsRefresh))
+                if(item is FSFile fsFile)
+                    _app.Get(fsFile.PreviewURL!).ContinueWith(task => {
+                        if(task.IsCompletedSuccessfully && task.Result != null)
+                            item.Preview = Utils.BitmapFromArray(task.Result);
+                    }, TaskContinuationOptions.ExecuteSynchronously);
         }
 
         private void lvDirView_ItemActivate(object sender, EventArgs e)
@@ -304,6 +359,7 @@ namespace NimbusProto2
                     if (monitoredDir == _app.CurrentDir)
                     {
                         await _app.RefreshCurrentDir(cancellationToken);
+                        DirCheckThumbnails();
                     }
                     else
                         break;

@@ -18,8 +18,9 @@ namespace NimbusProto2
         public DateTime LastModifiedTime { get => _lastModifiedTime; set { _lastModifiedTime = value; EmitPropertyChanged(); } }
 
         public abstract string DisplayType { get; }
-
-        public abstract string ImageKey { get; }
+        public abstract string DefaultImageKey { get; }
+        public virtual Bitmap? Preview { get; set; } = null;
+        public virtual bool PreviewNeedsRefresh { get => false; }
         public string FullPath { get { return Utils.URIPathCombine(Parent?.FullPath ?? "/", Name); } }
 
         public string PathRelativeTo(FSDirectory originDirectory)
@@ -74,12 +75,27 @@ namespace NimbusProto2
         private string? _mimeType;
         private string? _publicURL;
         private long _size;
+        private string? _previewURL;
+
         public string? MIMEType { get => _mimeType; set { _mimeType = value; EmitPropertyChanged(); EmitPropertyChanged("DisplayType"); } }
         public string? PublicURL { get => _publicURL; set { _publicURL = value; EmitPropertyChanged(); } }
         public long Size { get => _size; private set { _size = value; EmitPropertyChanged(); } }
 
         public override string DisplayType => _mimeType ?? "";
-        public override string ImageKey => Constants.StockImageKeys.File;
+        public override string DefaultImageKey => Constants.StockImageKeys.File;
+
+        public string? PreviewURL
+        {
+            get => _previewURL;
+            set
+            {
+                _previewURL = value;
+                Preview = null;
+                EmitPropertyChanged();
+            }
+        }
+        public override Bitmap? Preview { get => base.Preview; set { base.Preview = value; EmitPropertyChanged(); } }
+        public override bool PreviewNeedsRefresh => PreviewURL != null && Preview == null;
 
         public override void UpdateWith(YADISK.ResourcesItem resource)
         {
@@ -90,6 +106,8 @@ namespace NimbusProto2
                 PublicURL = resource.public_url;
             if(Size != resource.size)
                 Size = resource.size;
+            if(PreviewURL != resource.preview)
+                PreviewURL = resource.preview;
         }
 
         public override void Walk(Action<FSItem> action)
@@ -103,7 +121,7 @@ namespace NimbusProto2
         public override string DisplayType => "Папка с файлами";
         public BetterBindingList<FSItem> Children { get; private set; } = [];
 
-        public override string ImageKey => Constants.StockImageKeys.Folder;
+        public override string DefaultImageKey => Constants.StockImageKeys.Folder;
 
         public override FSDirectory GetShallowCopy()
         {

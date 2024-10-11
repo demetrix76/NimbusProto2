@@ -182,13 +182,6 @@ namespace VirtualFiles
             return buffer;
         }
 
-        //public static nint MarshalBytesAsHGLOBAL(byte[] bytes)
-        //{
-        //    var ptr = Marshal.AllocHGlobal(bytes.Length);
-        //    Marshal.Copy(bytes, 0, ptr, bytes.Length);
-        //    return ptr;
-        //}
-
         public static FILETIME MakeFileTime(DateTime dateTime)
         {
             var mtime = dateTime.ToLocalTime().ToFileTime(); // not UTC here?

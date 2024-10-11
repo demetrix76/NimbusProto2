@@ -122,6 +122,25 @@ namespace NimbusProto2
             _settings.AccessToken = accessToken;
         }
 
+        public async Task<byte[]?> Get(string url)
+        {
+            try
+            {
+                var request = new RequestBuilder(HttpMethod.Get, url)
+                    .WithAuthorization(_settings.AccessToken)
+                    .Build();
+
+                var response = await _httpClient.SendAsync(request);
+                response.EnsureSuccessStatusCode();
+
+                return await response.Content.ReadAsByteArrayAsync();
+            }
+            catch(Exception)
+            {
+                return null;
+            }
+        }
+
         public FSDirectory RootDir { get => _rootDir; } 
 
         public FSDirectory CurrentDir { get => _currentDir; set => _currentDir = value; }
