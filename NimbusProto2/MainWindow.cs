@@ -21,6 +21,8 @@ namespace NimbusProto2
             _app = app;
 
             DirInit();
+            btnProgressCancel.ShowDropDownArrow = false;
+            btnProgressCancel.Image = SystemIcons.GetStockIcon(StockIconId.Error, StockIconOptions.SmallIcon).ToBitmap();
         }
 
         private void btnLogInOut_Click(object sender, EventArgs e)
@@ -189,21 +191,21 @@ namespace NimbusProto2
             switch (propertyName)
             {
                 case "Preview":
-                {
-                    if (fsItem.Preview != null)
                     {
-                        lvDirView.SmallImageList!.Images.Add(fsItem.ID, Utils.DownsizedBitmap(fsItem.Preview, Constants.UI.SmallIconSize));
-                        lvDirView.LargeImageList!.Images.Add(fsItem.ID, Utils.DownsizedBitmap(fsItem.Preview, Constants.UI.LargeIconSize));
-                        lvDirView.Items[fsItem.ID]!.ImageKey = fsItem.ID;
+                        if (fsItem.Preview != null)
+                        {
+                            lvDirView.SmallImageList!.Images.Add(fsItem.ID, Utils.DownsizedBitmap(fsItem.Preview, Constants.UI.SmallIconSize));
+                            lvDirView.LargeImageList!.Images.Add(fsItem.ID, Utils.DownsizedBitmap(fsItem.Preview, Constants.UI.LargeIconSize));
+                            lvDirView.Items[fsItem.ID]!.ImageKey = fsItem.ID;
+                        }
+                        else
+                        {
+                            lvDirView.SmallImageList!.Images.RemoveByKey(fsItem.ID);
+                            lvDirView.LargeImageList!.Images.RemoveByKey(fsItem.ID);
+                            lvDirView.Items[fsItem.ID]!.ImageKey = fsItem.DefaultImageKey;
+                        }
+                        break;
                     }
-                    else
-                    {
-                        lvDirView.SmallImageList!.Images.RemoveByKey(fsItem.ID);
-                        lvDirView.LargeImageList!.Images.RemoveByKey(fsItem.ID);
-                        lvDirView.Items[fsItem.ID]!.ImageKey = fsItem.DefaultImageKey;
-                    }
-                    break;
-                }
                 case "Name":
                     lvDirView.Items[fsItem.ID]!.Text = fsItem.Name;
                     break;
@@ -216,7 +218,7 @@ namespace NimbusProto2
                 default:
                     break;
             }
-            
+
         }
 
         private void DirItemWillBeDeleted(object? sender, ListChangedEventArgs e)
@@ -270,7 +272,7 @@ namespace NimbusProto2
             foreach (var fsItem in list)
                 DirAppendItem(fsItem);
             lvDirView.EndUpdate();
-            
+
             DirCheckThumbnails();
         }
 
@@ -283,13 +285,14 @@ namespace NimbusProto2
             }, TaskContinuationOptions.ExecuteSynchronously);
         }
 
-        
+
         private void DirCheckThumbnails()
         {
             foreach (var item in _app.CurrentDir.Children.Where(e => e.PreviewNeedsRefresh))
-                if(item is FSFile fsFile)
-                    _app.Get(fsFile.PreviewURL!).ContinueWith(task => {
-                        if(task.IsCompletedSuccessfully && task.Result != null)
+                if (item is FSFile fsFile)
+                    _app.Get(fsFile.PreviewURL!).ContinueWith(task =>
+                    {
+                        if (task.IsCompletedSuccessfully && task.Result != null)
                             item.Preview = Utils.BitmapFromArray(task.Result);
                     }, TaskContinuationOptions.ExecuteSynchronously);
         }
@@ -389,7 +392,7 @@ namespace NimbusProto2
 
             var effect = VirtualFiles.DefaultDropSource.DoDragDrop(dataObj, DragDropEffects.Copy);
 
-            if(0 == effect)
+            if (0 == effect)
                 cancellationSource.Cancel();
         }
 
@@ -397,5 +400,32 @@ namespace NimbusProto2
         #endregion
 
 
+        private void lvDirView_DragDrop(object sender, DragEventArgs e)
+        {
+            Console.WriteLine("DragDrop");
+            var dobj = new DataObject(e.Data!);
+            if (dobj.ContainsFileDropList())
+            {
+                Console.WriteLine("Contains FILE DROP");
+
+                UploadList uploadList = new(_app.CurrentDir.FullPath);
+
+                foreach (var s in dobj.GetFileDropList())
+                    //Console.WriteLine(s);
+                    uploadList.AddLocalFile(s);
+
+                foreach (var u in uploadList.UploadUnits)
+                {
+                    Console.WriteLine("=====");
+                    Console.WriteLine($" Local: {u.localFile}");
+                    Console.WriteLine($"Remote: {u.remoteFile}");
+                }
+            }
+        }
+
+        private void lvDirView_DragEnter(object sender, DragEventArgs e)
+        {
+            e.Effect = DragDropEffects.Copy;
+        }
     }
 }

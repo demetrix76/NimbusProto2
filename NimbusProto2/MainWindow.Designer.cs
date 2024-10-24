@@ -29,16 +29,21 @@
         private void InitializeComponent()
         {
             Panel panel1;
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainWindow));
             lblLogin = new Label();
             picAvatar = new PictureBox();
             btnLogInOut = new Button();
             statusStrip1 = new StatusStrip();
+            Upload = new ToolStripStatusLabel();
+            toolStripProgressBar1 = new ToolStripProgressBar();
             split1 = new SplitContainer();
             lvDirView = new ListView();
             pnlPath = new FlowLayoutPanel();
+            btnProgressCancel = new ToolStripDropDownButton();
             panel1 = new Panel();
             panel1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)picAvatar).BeginInit();
+            statusStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)split1).BeginInit();
             split1.Panel1.SuspendLayout();
             split1.SuspendLayout();
@@ -92,12 +97,24 @@
             // statusStrip1
             // 
             statusStrip1.ImageScalingSize = new Size(20, 20);
-            statusStrip1.Location = new Point(0, 699);
+            statusStrip1.Items.AddRange(new ToolStripItem[] { Upload, toolStripProgressBar1, btnProgressCancel });
+            statusStrip1.Location = new Point(0, 695);
             statusStrip1.Name = "statusStrip1";
             statusStrip1.RenderMode = ToolStripRenderMode.Professional;
-            statusStrip1.Size = new Size(1006, 22);
+            statusStrip1.Size = new Size(1006, 26);
             statusStrip1.TabIndex = 1;
             statusStrip1.Text = "statusStrip1";
+            // 
+            // Upload
+            // 
+            Upload.Name = "Upload";
+            Upload.Size = new Size(94, 20);
+            Upload.Text = "Загружаем...";
+            // 
+            // toolStripProgressBar1
+            // 
+            toolStripProgressBar1.Name = "toolStripProgressBar1";
+            toolStripProgressBar1.Size = new Size(256, 18);
             // 
             // split1
             // 
@@ -114,23 +131,26 @@
             // split1.Panel2
             // 
             split1.Panel2.BackColor = SystemColors.Control;
-            split1.Size = new Size(1006, 635);
+            split1.Size = new Size(1006, 631);
             split1.SplitterDistance = 688;
             split1.TabIndex = 2;
             split1.TabStop = false;
             // 
             // lvDirView
             // 
+            lvDirView.AllowDrop = true;
             lvDirView.BorderStyle = BorderStyle.None;
             lvDirView.Dock = DockStyle.Fill;
             lvDirView.FullRowSelect = true;
             lvDirView.Location = new Point(0, 37);
             lvDirView.Name = "lvDirView";
-            lvDirView.Size = new Size(688, 598);
+            lvDirView.Size = new Size(688, 594);
             lvDirView.TabIndex = 1;
             lvDirView.UseCompatibleStateImageBehavior = false;
             lvDirView.ItemActivate += lvDirView_ItemActivate;
             lvDirView.ItemDrag += lvDirView_ItemDrag;
+            lvDirView.DragDrop += lvDirView_DragDrop;
+            lvDirView.DragEnter += lvDirView_DragEnter;
             lvDirView.KeyDown += lvDirView_KeyDown;
             // 
             // pnlPath
@@ -142,6 +162,15 @@
             pnlPath.Size = new Size(688, 37);
             pnlPath.TabIndex = 0;
             pnlPath.WrapContents = false;
+            // 
+            // btnProgressCancel
+            // 
+            btnProgressCancel.DisplayStyle = ToolStripItemDisplayStyle.Image;
+            btnProgressCancel.Image = (Image)resources.GetObject("btnProgressCancel.Image");
+            btnProgressCancel.ImageTransparentColor = Color.Magenta;
+            btnProgressCancel.Name = "btnProgressCancel";
+            btnProgressCancel.Size = new Size(34, 24);
+            btnProgressCancel.Text = "toolStripDropDownButton1";
             // 
             // MainWindow
             // 
@@ -156,6 +185,8 @@
             Load += MainWindow_Load;
             panel1.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)picAvatar).EndInit();
+            statusStrip1.ResumeLayout(false);
+            statusStrip1.PerformLayout();
             split1.Panel1.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)split1).EndInit();
             split1.ResumeLayout(false);
@@ -172,5 +203,8 @@
         private SplitContainer split1;
         private FlowLayoutPanel pnlPath;
         private ListView lvDirView;
+        private ToolStripStatusLabel Upload;
+        private ToolStripProgressBar toolStripProgressBar1;
+        private ToolStripDropDownButton btnProgressCancel;
     }
 }

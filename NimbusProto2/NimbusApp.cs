@@ -1,5 +1,6 @@
 ﻿using System.Web;
 using System.Net;
+using System.IO;
 using System.Text.Json;
 using VirtualFiles;
 
@@ -14,6 +15,50 @@ namespace NimbusProto2
         AuthorizationError,
         ConnectionError,
         InternalError
+    }
+
+    internal struct UploadUnit
+    {
+        public string localFile;
+        public string remoteFile;
+        public bool isDirectory;
+    }
+
+    internal class UploadList(String destinationDir)
+    {
+        private String _destinationDir = destinationDir;
+        private List<UploadUnit> _units = [];
+
+        public List<UploadUnit> UploadUnits { get => _units; }
+
+        public void AddLocalFile(String path)
+        {
+            var basePath = Path.GetDirectoryName(path) ?? "";
+            try
+            {
+                if(File.GetAttributes(path).HasFlag(FileAttributes.Directory))
+                {
+                    // directory; add itself and do complete scan
+                    _units.Add(new UploadUnit { localFile = path, remoteFile = Path.Combine(_destinationDir, basePath), isDirectory = true });
+                    _units.AddRange(
+                        from dir in Directory.GetDirectories(path, "*.*", SearchOption.AllDirectories)
+                            select new UploadUnit { localFile = dir, remoteFile = Path.Combine(_destinationDir, Path.GetRelativePath(basePath, dir)), isDirectory = true }
+                    );
+
+                    _units.AddRange(
+                    from file in Directory.GetFiles(path, "*.*", SearchOption.AllDirectories)
+                        select new UploadUnit { localFile = file, remoteFile = Path.Combine(_destinationDir, Path.GetRelativePath(basePath, file)), isDirectory = false }
+                    );
+                }
+                else
+                {
+                    // just a single file
+                    _units.Add(new UploadUnit { localFile = path, remoteFile = Path.Combine(_destinationDir, Path.GetFileName(path)), isDirectory = false });
+                }
+            }
+            catch (Exception) { } // the file may no longer exist, let's ignore such entries then
+
+        }
     }
 
     internal class NimbusApp : IDisposable
