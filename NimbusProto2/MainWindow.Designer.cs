@@ -34,12 +34,12 @@
             picAvatar = new PictureBox();
             btnLogInOut = new Button();
             statusStrip1 = new StatusStrip();
-            Upload = new ToolStripStatusLabel();
-            toolStripProgressBar1 = new ToolStripProgressBar();
+            reportText = new ToolStripStatusLabel();
+            reportProgressBar = new ToolStripProgressBar();
+            reportCancelBtn = new ToolStripDropDownButton();
             split1 = new SplitContainer();
             lvDirView = new ListView();
             pnlPath = new FlowLayoutPanel();
-            btnProgressCancel = new ToolStripDropDownButton();
             panel1 = new Panel();
             panel1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)picAvatar).BeginInit();
@@ -97,7 +97,7 @@
             // statusStrip1
             // 
             statusStrip1.ImageScalingSize = new Size(20, 20);
-            statusStrip1.Items.AddRange(new ToolStripItem[] { Upload, toolStripProgressBar1, btnProgressCancel });
+            statusStrip1.Items.AddRange(new ToolStripItem[] { reportText, reportProgressBar, reportCancelBtn });
             statusStrip1.Location = new Point(0, 695);
             statusStrip1.Name = "statusStrip1";
             statusStrip1.RenderMode = ToolStripRenderMode.Professional;
@@ -105,16 +105,31 @@
             statusStrip1.TabIndex = 1;
             statusStrip1.Text = "statusStrip1";
             // 
-            // Upload
+            // reportText
             // 
-            Upload.Name = "Upload";
-            Upload.Size = new Size(94, 20);
-            Upload.Text = "Загружаем...";
+            reportText.AutoSize = false;
+            reportText.Name = "reportText";
+            reportText.Size = new Size(360, 20);
+            reportText.Text = "Загружаем...";
+            reportText.TextAlign = ContentAlignment.MiddleLeft;
+            reportText.Visible = false;
             // 
-            // toolStripProgressBar1
+            // reportProgressBar
             // 
-            toolStripProgressBar1.Name = "toolStripProgressBar1";
-            toolStripProgressBar1.Size = new Size(256, 18);
+            reportProgressBar.Name = "reportProgressBar";
+            reportProgressBar.Size = new Size(256, 18);
+            reportProgressBar.Visible = false;
+            // 
+            // reportCancelBtn
+            // 
+            reportCancelBtn.DisplayStyle = ToolStripItemDisplayStyle.Image;
+            reportCancelBtn.Image = (Image)resources.GetObject("reportCancelBtn.Image");
+            reportCancelBtn.ImageTransparentColor = Color.Magenta;
+            reportCancelBtn.Name = "reportCancelBtn";
+            reportCancelBtn.Size = new Size(34, 24);
+            reportCancelBtn.Text = "toolStripDropDownButton1";
+            reportCancelBtn.ToolTipText = "Cancel";
+            reportCancelBtn.Visible = false;
             // 
             // split1
             // 
@@ -163,15 +178,6 @@
             pnlPath.TabIndex = 0;
             pnlPath.WrapContents = false;
             // 
-            // btnProgressCancel
-            // 
-            btnProgressCancel.DisplayStyle = ToolStripItemDisplayStyle.Image;
-            btnProgressCancel.Image = (Image)resources.GetObject("btnProgressCancel.Image");
-            btnProgressCancel.ImageTransparentColor = Color.Magenta;
-            btnProgressCancel.Name = "btnProgressCancel";
-            btnProgressCancel.Size = new Size(34, 24);
-            btnProgressCancel.Text = "toolStripDropDownButton1";
-            // 
             // MainWindow
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
@@ -203,8 +209,8 @@
         private SplitContainer split1;
         private FlowLayoutPanel pnlPath;
         private ListView lvDirView;
-        private ToolStripStatusLabel Upload;
-        private ToolStripProgressBar toolStripProgressBar1;
-        private ToolStripDropDownButton btnProgressCancel;
+        private ToolStripStatusLabel reportText;
+        private ToolStripProgressBar reportProgressBar;
+        private ToolStripDropDownButton reportCancelBtn;
     }
 }

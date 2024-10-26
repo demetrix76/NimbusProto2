@@ -21,8 +21,8 @@ namespace NimbusProto2
             _app = app;
 
             DirInit();
-            btnProgressCancel.ShowDropDownArrow = false;
-            btnProgressCancel.Image = SystemIcons.GetStockIcon(StockIconId.Error, StockIconOptions.SmallIcon).ToBitmap();
+            reportCancelBtn.ShowDropDownArrow = false;
+            reportCancelBtn.Image = SystemIcons.GetStockIcon(StockIconId.Error, StockIconOptions.SmallIcon).ToBitmap();
         }
 
         private void btnLogInOut_Click(object sender, EventArgs e)
@@ -411,7 +411,6 @@ namespace NimbusProto2
                 UploadList uploadList = new(_app.CurrentDir.FullPath);
 
                 foreach (var s in dobj.GetFileDropList())
-                    //Console.WriteLine(s);
                     uploadList.AddLocalFile(s);
 
                 foreach (var u in uploadList.UploadUnits)
@@ -420,6 +419,40 @@ namespace NimbusProto2
                     Console.WriteLine($" Local: {u.localFile}");
                     Console.WriteLine($"Remote: {u.remoteFile}");
                 }
+
+                reportText.Visible = true;
+                reportProgressBar.Visible = true;
+                reportProgressBar.Maximum = 100;
+                reportProgressBar.Minimum = 0;
+                reportProgressBar.Value = 0;
+                reportCancelBtn.Visible = true;
+
+                void reportSink(Object rep)
+                {
+                    if (rep is String txt)
+                        reportText.Text = $"Загружаем {txt}";
+                    else if(rep is int progress)
+                        reportProgressBar.Value = progress;
+                }
+
+                CancellationTokenSource cancellationSource = new();
+
+                void CancelHandler(object? sender, EventArgs e)
+                {
+                    cancellationSource.Cancel();
+                }
+
+                reportCancelBtn.Click += CancelHandler;
+
+                _app.UploadFiles(uploadList.UploadUnits, cancellationSource.Token, reportSink)
+                    .ContinueWith(task => {
+                        reportText.Visible = false;
+                        reportProgressBar.Visible = false;
+                        reportCancelBtn.Visible = false;
+                        reportCancelBtn.Click -= CancelHandler;
+                        DirBeginUpdate();
+                        
+                    }, TaskContinuationOptions.ExecuteSynchronously);
             }
         }
 

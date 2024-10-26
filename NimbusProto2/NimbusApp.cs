@@ -12,6 +12,7 @@ namespace NimbusProto2
     internal enum RequestStatus
     {
         OK,
+        Cancelled,
         AuthorizationError,
         ConnectionError,
         InternalError
@@ -39,7 +40,7 @@ namespace NimbusProto2
                 if(File.GetAttributes(path).HasFlag(FileAttributes.Directory))
                 {
                     // directory; add itself and do complete scan
-                    _units.Add(new UploadUnit { localFile = path, remoteFile = Path.Combine(_destinationDir, basePath), isDirectory = true });
+                    _units.Add(new UploadUnit { localFile = path, remoteFile = Path.Combine(_destinationDir, Path.GetRelativePath(basePath, path)), isDirectory = true });
                     _units.AddRange(
                         from dir in Directory.GetDirectories(path, "*.*", SearchOption.AllDirectories)
                             select new UploadUnit { localFile = dir, remoteFile = Path.Combine(_destinationDir, Path.GetRelativePath(basePath, dir)), isDirectory = true }
@@ -432,6 +433,102 @@ namespace NimbusProto2
 
             return virtualStream;
         }
+    
+        public async Task<RequestStatus> UploadFiles(IList<UploadUnit> files, CancellationToken cancellationToken, Action<Object> reportSink)
+        {
+            // calculate the total size
+            long totalSize = 0;
+            foreach (var file in files)
+                if (!File.GetAttributes(file.localFile).HasFlag(FileAttributes.Directory))
+                    totalSize += new FileInfo(file.localFile).Length;
+
+            long completedSize = 0;
+
+            try
+            {
+                foreach (var file in files)
+                {
+                    reportSink(Path.GetFileName(file.remoteFile));
+                    if (File.GetAttributes(file.localFile).HasFlag(FileAttributes.Directory))
+                    {
+                        // create the directory 
+                        var createRequest = new RequestBuilder(HttpMethod.Put, Constants.DiskAPIUrl + "resources")
+                            .WithAccept(Constants.MIME.JSON)
+                            .WithAuthorization(_settings.AccessToken)
+                            .WithQuery(("path", file.remoteFile.Replace('\\', '/')))
+                            .Build();
+                        var response = await _httpClient.SendAsync(createRequest, cancellationToken);
+                        // here, we consider 201 and 409 successful (409 means the directory already exists)
+                        if (response.StatusCode == HttpStatusCode.Forbidden || response.StatusCode == HttpStatusCode.Unauthorized)
+                            return RequestStatus.AuthorizationError;
+                        if (response.StatusCode != HttpStatusCode.Created && response.StatusCode != HttpStatusCode.Conflict)
+                            return RequestStatus.InternalError;
+                    }
+                    else
+                    {
+                        try
+                        {
+                            using var stream = new FileStream(file.localFile, FileMode.Open, FileAccess.Read);
+
+                            var fileSize = stream.Length;
+
+                            var getRequest = new RequestBuilder(HttpMethod.Get, Constants.DiskAPIUrl + "resources/upload")
+                                .WithAccept(Constants.MIME.JSON)
+                                .WithAuthorization(_settings.AccessToken)
+                                .WithQuery(
+                                    ("path", file.remoteFile.Replace('\\', '/')),
+                                    ("overwrite", "true")
+                                )
+                                .Build();
+
+                            var response = await _httpClient.SendAsync(getRequest, cancellationToken);
+                            if (response.StatusCode == HttpStatusCode.Forbidden || response.StatusCode == HttpStatusCode.Unauthorized)
+                                return RequestStatus.AuthorizationError;
+                            if (response.StatusCode != HttpStatusCode.OK && response.StatusCode != HttpStatusCode.Conflict)
+                                return RequestStatus.InternalError;
+
+                            var uploadInfo = JsonSerializer.Deserialize<YADISK.UploadResponse>(await response.Content.ReadAsStringAsync());
+                            if (uploadInfo?.href != null)
+                            {
+                                var putRequest = new RequestBuilder(HttpMethod.Put, uploadInfo.href)
+                                    .WithAuthorization(_settings.AccessToken)
+                                    .Build();
+                                putRequest.Content = new StreamContent(stream);
+
+                                var putResponse = await _httpClient.SendAsync(putRequest, cancellationToken);
+                                if(!putResponse.IsSuccessStatusCode)
+                                {
+                                    // notity
+                                }
+
+                                completedSize += fileSize;
+
+                                if (totalSize > 0)
+                                {
+                                    var progress = (int)((double)completedSize / (double)totalSize * 100.0);
+                                    reportSink(progress);
+                                }
+                            }
+                            else
+                            {
+                                // notify that this certain file failed
+                            }
+                        }
+                        catch (FileNotFoundException) { }
+                    }
+                }
+            }
+            catch (HttpRequestException)
+            {
+                return RequestStatus.ConnectionError;
+            }
+            catch(TaskCanceledException)
+            {
+                return RequestStatus.Cancelled;
+            }
+            return RequestStatus.OK;
+        }
+    
     }
 }
 
